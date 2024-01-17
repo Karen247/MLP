@@ -1,8 +1,7 @@
 //
-// Created by karen on 12/4/23.
 //
 // NeuralNetwork_Project.cpp
-// Karen Pailozian & Remi Monteil
+// KP & RM
 //
 #ifdef WINDOWS
 #include <direct.h>
