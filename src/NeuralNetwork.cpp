@@ -19,11 +19,13 @@
 #include <string>
 #include <unordered_set>
 #include <cmath>
-const float lambda = 1.050;
-const float alpha = 1.673;
+#include "activation.h"
+#include "data.h"
+
 const int BatchSize = 16;
 const float beta1 = 0.9;
 const float beta2 = 0.999;
+
 //Input Layer
 const int Input_Layer = 784;
 
@@ -35,7 +37,7 @@ const int Hidden_Layer2 = 128;
 const int Output_Layer = 10;
 
 const int epoch = 60;
-float learning_rate = 0.001;
+const float learning_rate = 0.001;
 
 const float momentum = 0.9;
 const float epsilon = 1;
@@ -68,135 +70,17 @@ float Deltas_h1[Hidden_Layer1];
 float Deltas_h2[Hidden_Layer2];
 float Deltas_o[Output_Layer];
 
-const int Train_Data_size = 60000;
 float Train_Data[Train_Data_size][Input_Layer];
 float Train_Output[Train_Data_size][Output_Layer];
 float Prediction_Train_Output[Train_Data_size];
 
-const int Test_Data_size = 10000;
 float Test_Data[Test_Data_size][Input_Layer];
 float Test_Output[Test_Data_size][Output_Layer];
 float Prediction_Test_Output[Test_Data_size];
 
 std::vector<int> train_index;
 std::vector<int> validation_index;
-// WORKS OK
-void Get_Input_Data(bool Get_Train_Data)
-{
 
-    size_t i;
-    std::string line;
-    size_t j;
-    std::string word;
-
-    char buff[FILENAME_MAX];
-    GetCurrentDir(buff, FILENAME_MAX );
-    std::string current_working_dir(buff);
-
-    if (Get_Train_Data)
-        current_working_dir += "/data/fashion_mnist_train_vectors.csv";
-    else
-        current_working_dir += "/data/fashion_mnist_test_vectors.csv";
-
-    std::fstream file(current_working_dir, std::ios::in);
-
-    if (file.is_open())
-    {
-        std::cout << "Could open the file\n";
-        i = 0;
-        while (std::getline(file, line))
-        {
-            std::stringstream str(line);
-
-            j = 0;
-            while (std::getline(str, word, ','))
-            {
-                if (Get_Train_Data) {
-                    Train_Data[i][j] = static_cast<float>(std::atoi(word.c_str())) / 255;
-                }
-
-                else {
-                    Test_Data[i][j] = static_cast<float>(std::atoi(word.c_str())) / 255;
-                }
-                j++;
-                if (j >= Input_Layer)
-                    break;
-            }
-
-            if (Get_Train_Data) {
-                if (i == Train_Data_size) {
-                    break;
-                }
-            }
-            else {
-                if (i == Test_Data_size)
-                    break;
-            }
-            i++;
-
-        }
-    }
-    else {
-
-        std::cout << "Could not open the file\n";
-    }
-}
-// WORKS OK
-void Get_Output_Data(bool Get_Train_Data)
-{
-
-    size_t i;
-    std::string line;
-    std::string word;
-
-    char buff[FILENAME_MAX];
-    GetCurrentDir(buff, FILENAME_MAX );
-    std::string current_working_dir(buff);
-
-    if (Get_Train_Data)
-        current_working_dir += "/data/fashion_mnist_train_labels.csv";
-    else
-        current_working_dir += "/data/fashion_mnist_test_labels.csv";
-
-    std::fstream file(current_working_dir, std::ios::in);
-    if (file.is_open()) {
-        std::cout << "Could open the file\n";
-        i = 0;
-        while (std::getline(file, line)) {
-            std::stringstream str(line);
-
-            if (Get_Train_Data) {
-                int number = std::stoi(line);
-                for (int pos = 0; pos < Output_Layer; pos++) {
-                    Train_Output[i][pos] = 0.0f;
-                }
-                Train_Output[i][number] = 1.0f;
-            }
-            else {
-                int number = std::stoi(line);
-                for (int pos = 0; pos < Output_Layer; pos++) {
-                    Test_Output[i][pos] = 0.0f;
-                }
-                Test_Output[i][number] = 1.0f;
-            }
-            if (Get_Train_Data) {
-                if (i == Train_Data_size) {
-                    break;
-                }
-            }
-            else {
-                if (i == Test_Data_size)
-                    break;
-            }
-            i++;
-
-        }
-    }
-    else
-        std::cout << "Could not open the file\n";
-}
-
-// Works OK
 void Init_Input(int index, bool Training) {
     for (int i = 0; i < Input_Layer; i++) {
         if (Training) {
@@ -206,6 +90,17 @@ void Init_Input(int index, bool Training) {
             Input[i] = Test_Data[index][i];
     }
 }
+
+void Init_Output_Expected(int index, bool Training) {
+    for (int i = 0; i < Output_Layer; i++) {
+        if (Training) {
+            Output_Expected[i] = Train_Output[index][i];
+        }
+        else
+            Output_Expected[i] = Test_Output[index][i];
+    }
+}
+
 
 void SetPredictionValue(size_t index, bool train) {
     float max = 0.0;
@@ -254,7 +149,6 @@ void CreatePredictionFile(bool train) {
     }
 }
 
-// WORKS OK
 void Init_Weights() {
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -283,46 +177,9 @@ void Init_Weights() {
         }
     }
 }
-// WORKS OK
-void Init_Output_Expected(int index, bool Training) {
-    for (int i = 0; i < Output_Layer; i++) {
-        if (Training) {
-            Output_Expected[i] = Train_Output[index][i];
-        }
-        else
-            Output_Expected[i] = Test_Output[index][i];
-    }
-}
 
-
-float Selu(float x) {
-    if (x >= 0) return lambda * x;
-    else return lambda * (alpha * (exp(x) - 1));
-}
-
-float Derivate_Selu(float x) {
-    if (x >= 0) return lambda;
-    else return lambda * (alpha * exp(x));
-}
-
-float Relu(float x) {
-    return x > 0 ? x : 0;
-}
-
-float Derivate_Relu(float x) {
-    return x > 0 ? 1 : 0;
-}
-
-float Sigmoid(float x) {
-    return 1 / (1 + exp(-x));
-}
-
-float Derivate_Sigmoid(float x) {
-    return x * (1 - x);
-}
 
 void Forward_Propagation() {
-    //WORKS OK
     for (size_t i = 0; i < Hidden_Layer1; i++) {
         float tmp_potential = Bias_h1[i];
         for (size_t j = 0; j < Input_Layer; j++) {
@@ -332,8 +189,6 @@ void Forward_Propagation() {
         Output_h1[i] = Sigmoid(tmp_potential);
     }
 
-
-    // WORKS OK
     for (size_t i = 0; i < Hidden_Layer2; i++) {
         float tmp_potential = Bias_h2[i];
 
@@ -358,14 +213,12 @@ void Forward_Propagation() {
         sum += exp(tmp_potential);
     }
 
-    // WORKS OK
     for (size_t i = 0; i < Output_Layer; i++)
     {
         Output_o[i] = exp(Potential_o[i]) / sum;
     }
 }
 
-// WORKS OK
 float cross_entropy() {
     float loss = 0.0;
     for (size_t i = 0; i < Output_Layer; i++) {
@@ -389,16 +242,12 @@ void accuracy(float& acc) {
         acc++;
 }
 
-// WORKS OK
 void Backward_Propagation() {
     float total_error;
-
-    // WORKS OK
     for (size_t i = 0; i < Output_Layer; i++) {
         Deltas_o[i] = Output_o[i] - Output_Expected[i];
     }
 
-    // WORKS OK
     for (size_t i = 0; i < Hidden_Layer2; i++) {
         total_error = 0.0;
 
@@ -409,7 +258,6 @@ void Backward_Propagation() {
         Deltas_h2[i] = total_error * Derivate_Sigmoid(Output_h2[i]);
     }
 
-    // WORKS OK
     for (size_t i = 0; i < Hidden_Layer1; i++) {
         total_error = 0.0;
 
@@ -421,7 +269,6 @@ void Backward_Propagation() {
 
 
     // Weight update
-    //WORKS OK
     for (size_t i = 0; i < Hidden_Layer1; i++) {
         Bias_h1[i] += -learning_rate * Deltas_h1[i];
 
@@ -432,7 +279,6 @@ void Backward_Propagation() {
         }
     }
 
-    // WORKS OK
     for (size_t i = 0; i < Hidden_Layer2; i++) {
         Bias_h2[i] += -learning_rate * Deltas_h2[i];
 
@@ -442,7 +288,6 @@ void Backward_Propagation() {
         }
     }
 
-    // WORKS OK
     for (size_t i = 0; i < Output_Layer; i++) {
         Bias_o[i] += -learning_rate * Deltas_o[i];
         for (size_t j = 0; j < Hidden_Layer2; j++) {
@@ -453,13 +298,35 @@ void Backward_Propagation() {
 
 }
 
-int learning_v2(int tmp_index) {
+void Reinit_moments() {
+    for (size_t i = 0; i < Hidden_Layer1; i++) {
+        for (size_t j = 0; j < Input_Layer; j++) {
+            Deltas_w_h1[i][j] = 0.0;
+        }
+    }
+
+    for (size_t i = 0; i < Hidden_Layer2; i++) {
+        for (size_t j = 0; j < Hidden_Layer1; j++) {
+            Deltas_w_h2[i][j] = 0;
+        }
+    }
+
+    for (size_t i = 0; i < Output_Layer; i++) {
+        for (size_t j = 0; j < Hidden_Layer2; j++) {
+            Deltas_w_o[i][j] = 0;
+        }
+    }
+}
+
+int learning(int tmp_index) {
     Init_Input(tmp_index, true);
     Init_Output_Expected(tmp_index, true);
     Forward_Propagation();
     Backward_Propagation();
     return 0;
 }
+
+
 void shuffle_data(int &seed) {
     srand(seed);
     std::random_device rd;
@@ -484,6 +351,7 @@ void shuffle_data(int &seed) {
     validation_index.clear();
     train_index.insert(train_index.end(), set_random.begin(), set_random.end());
     validation_index.insert(validation_index.end(), set_random_validation.begin(), set_random_validation.end());
+    seed++;
 }
 
 float validate() {
@@ -498,14 +366,17 @@ float validate() {
     }
     return acc;
 }
-int Train_v2() {
+
+
+int Train() {
 
     int seed = 1;
     int i = 0;
 
     for (; i < epoch; i++) {
         shuffle_data(seed);
-        seed+=1;
+        printf("%d", seed);
+        // seed+=1;
         int index = 0;
         int batch_num = 1;
         int count = 0;
@@ -513,12 +384,13 @@ int Train_v2() {
             count = 0;
             int num_good_results = 0;
             float total_cross_entropy = 0.0;
+            Reinit_moments();
             while (count < BatchSize) {
-                printf("%d and %d and %d \n", index, train_index[index], batch_num);
+                // printf("%d and %d and %d \n", index, train_index[index], batch_num);
                 printf("entropy: %f\n", cross_entropy());
                 total_cross_entropy += cross_entropy();
 
-                learning_v2(train_index[index]);
+                learning(train_index[index]);
                 index++;
                 count++;
 
@@ -567,17 +439,19 @@ void Testing(bool train) {
     else
         printf("Accuracy %% : %f  \n\n", acc * 100 / Test_Data_size);
 }
+
+
 int main()
 {
     auto start = std::chrono::high_resolution_clock::now();
     printf("starting to get the data\n");
-    Get_Input_Data(true);
-    Get_Input_Data(false);
-    Get_Output_Data(true);
-    Get_Output_Data(false);
+    Get_Input_Data(Train_Data, true);
+    Get_Input_Data(Test_Data, false);
+    Get_Output_Data(Train_Output, true);
+    Get_Output_Data(Test_Output, false);
     Init_Weights();
     printf("starting to train\n");
-    int epochs = Train_v2();
+    int epochs = Train();
     printf("Epochs: %d\n", epochs);
     Testing(true);
     CreatePredictionFile(true);
